@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSV to JSON</title>
+  <style>
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+      background: #f4f6f9;
+      color: #1f2937;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      line-height: 1.5;
+    }
+    header { border-bottom: 2px solid #d1d5db; margin-bottom: 24px; padding-bottom: 8px; }
+    header h1 { margin: 0; font-size: 2rem; }
+    header h3 { margin: 4px 0 0; color: #4b5563; font-weight: 500; }
+    h2 { font-size: 1.15rem; margin: 0 0 12px; }
+    section {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .upload-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    button {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button:hover { background: #1d4ed8; }
+    pre {
+      background: #111827;
+      color: #e5e7eb;
+      border-radius: 6px;
+      padding: 16px;
+      margin: 0;
+      max-height: 500px;
+      overflow: auto;
+      font-size: 0.85rem;
+    }
+    pre:empty::before { content: "No data yet. Upload a CSV and click convert."; color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Daniel Jade Y. Sanding</h1>
+    <h3><i>IT 3206N TTH 6:00 - 8:30</i></h3>
+  </header>
+
+  <h1>CSV to JSON</h1>
+
+  <section>
+    <h2>1. Upload CSV</h2>
+    <div class="upload-row">
+      <input type="file" id="csvFile" accept=".csv">
+      <button id="convertBtn">Convert CSV to JSON</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. JSON Display</h2>
+    <pre id="jsonOutput"></pre>
+  </section>
+
+  <script>
+    // Course code -> full program name
+    const PROGRAMS = {
+      "BSIT": "Bachelor of Science in Information Technology",
+      "BSCS": "Bachelor of Science in Computer Science",
+      "BSIS": "Bachelor of Science in Information Systems",
+      "BSCPE": "Bachelor of Science in Computer Engineering"
+    };
+
+    // Capitalize first letter of each word, lowercase the rest
+    function capitalize(str) {
+      return str
+        .trim()
+        .toLowerCase()
+        .replace(/(^|\s)(\S)/g, (m, space, ch) => space + ch.toUpperCase());
+    }
+
+    function toProgram(course) {
+      const key = course.trim().toUpperCase();
+      return PROGRAMS[key] || course.trim();
+    }
+
+    // CSV parser that handles quoted fields and commas inside quotes
+    function parseCSV(text) {
+      const rows = [];
+      let row = [], field = "", inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inQuotes) {
+          if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+          else if (c === '"') { inQuotes = false; }
+          else { field += c; }
+        } else if (c === '"') {
+          inQuotes = true;
+        } else if (c === ",") {
+          row.push(field); field = "";
+        } else if (c === "\n" || c === "\r") {
+          if (c === "\r" && text[i + 1] === "\n") i++;
+          row.push(field); field = "";
+          rows.push(row); row = [];
+        } else {
+          field += c;
+        }
+      }
+      if (field !== "" || row.length) { row.push(field); rows.push(row); }
+
+      return rows.filter(r => r.some(cell => cell.trim() !== ""));
+    }
+
+    function transform(rows) {
+      const headers = rows[0].map(h => h.trim().toLowerCase());
+      const idx = name => headers.indexOf(name);
+
+      return rows.slice(1).map(r => {
+        const get = name => (r[idx(name)] || "").trim();
+        return {
+          studentId: parseInt(get("student_id"), 10),
+          firstName: capitalize(get("first_name")),
+          lastName: capitalize(get("last_name")),
+          program: toProgram(get("course")),
+          yearLevel: parseInt(get("year_level"), 10),
+          emailAddress: get("email").toLowerCase(),
+          outstandingBalance: Number(parseFloat(get("tuition_balance")).toFixed(2))
+        };
+      });
+    }
+
+    document.getElementById("convertBtn").addEventListener("click", () => {
+      const file = document.getElementById("csvFile").files[0];
+      const output = document.getElementById("jsonOutput");
+
+      if (!file) {
+        output.textContent = "Please choose a CSV file first.";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const rows = parseCSV(e.target.result);
+          const data = transform(rows);
+          output.textContent = JSON.stringify(data, null, 4);
+        } catch (err) {
+          output.textContent = "Error converting file: " + err.message;
+        }
+      };
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>
